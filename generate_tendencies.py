@@ -11,6 +11,20 @@ from typing import Iterable
 RANGE_PATTERN = re.compile(r"(\d+)\s*[\-–]\s*(\d+)")
 NUMBER_PATTERN = re.compile(r"(\d+)")
 
+RIGHT_DRIVE_BASE = 0.45
+RIGHT_DRIVE_CREATION_FACTOR = 0.15
+RIGHT_DRIVE_BIG_PENALTY = 0.05
+
+ISO_ELITE_DIFFICULTY = 0.20
+ISO_GOOD_DIFFICULTY = 0.10
+ISO_POOR_BONUS = 0.05
+
+FALLBACK_USAGE_BASE = 0.85
+FALLBACK_USAGE_FACTOR = 0.30
+
+DEFAULT_BLEND_WEIGHT = 0.25
+CALCULATED_BLEND_WEIGHT = 0.75
+
 
 def _parse_numeric_hint(cell: str) -> int | None:
     if not cell:
@@ -137,7 +151,10 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
 
     rim_rate = ratio("shooting_percent_fga_from_x0_3_range")
     short_rate = ratio("shooting_percent_fga_from_x3_10_range")
-    mid_rate = ratio("shooting_percent_fga_from_x10_16_range") + ratio("shooting_percent_fga_from_x16_3p_range")
+    mid_rate = _clamp01(
+        ratio("shooting_percent_fga_from_x10_16_range")
+        + ratio("shooting_percent_fga_from_x16_3p_range")
+    )
     three_share = ratio("shooting_percent_fga_from_x3p_range")
 
     assist2 = ratio("shooting_percent_assisted_x2p_fg")
@@ -219,7 +236,11 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
         "Alley-Oop": _clamp01(dunk_share * 0.90 + drive_pressure * 0.25 + big_share * 0.15),
         "Putback": _clamp01(orb_pct * 2.4 + big_share * 0.25),
         "Crash": _clamp01(orb_pct * 1.8 + big_share * 0.35 + drive_pressure * 0.10),
-        "Drive Right": _clamp01(0.45 + 0.15 * onball_creation - 0.05 * big_share),
+        "Drive Right": _clamp01(
+            RIGHT_DRIVE_BASE
+            + RIGHT_DRIVE_CREATION_FACTOR * onball_creation
+            - RIGHT_DRIVE_BIG_PENALTY * big_share
+        ),
         "Triple Threat Pump Fake": _clamp01(mid_rate * 0.40 + three_share * 0.30 + onball_creation * 0.30),
         "Triple Threat Jab Step": _clamp01(mid_rate * 0.30 + three_share * 0.20 + onball_creation * 0.50),
         "Triple Threat Idle": _clamp01(big_share * 0.45 + (1.0 - onball_creation) * 0.50),
@@ -242,10 +263,22 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
         "Alley-Oop Pass": _clamp01(_scale(ast_pct, 0.04, 0.35) * 0.95 + drive_pressure * 0.35),
         "Roll vs Pop": _clamp01(three_share * 0.90 + mid_rate * 0.30 - rim_rate * 0.20),
         "Spot vs Cut": _clamp01(three_share * 0.80 + assist3 * 0.25 - rim_rate * 0.20),
-        "ISO vs Elite": _clamp01(onball_creation * 0.75 + _scale(usg, 0.10, 0.35) * 0.40 - 0.20),
-        "ISO vs Good": _clamp01(onball_creation * 0.80 + _scale(usg, 0.10, 0.35) * 0.45 - 0.10),
+        "ISO vs Elite": _clamp01(
+            onball_creation * 0.75
+            + _scale(usg, 0.10, 0.35) * 0.40
+            - ISO_ELITE_DIFFICULTY
+        ),
+        "ISO vs Good": _clamp01(
+            onball_creation * 0.80
+            + _scale(usg, 0.10, 0.35) * 0.45
+            - ISO_GOOD_DIFFICULTY
+        ),
         "ISO vs Average": _clamp01(onball_creation * 0.85 + _scale(usg, 0.10, 0.35) * 0.50),
-        "ISO vs Poor": _clamp01(onball_creation * 0.90 + _scale(usg, 0.10, 0.35) * 0.55 + 0.05),
+        "ISO vs Poor": _clamp01(
+            onball_creation * 0.90
+            + _scale(usg, 0.10, 0.35) * 0.55
+            + ISO_POOR_BONUS
+        ),
         "Play Discipline": _clamp01((1.0 - turnover_pressure) * 0.70 + _scale(ast_pct, 0.04, 0.35) * 0.30),
         "Post Up": _clamp01(post_presence * 1.10 + big_share * 0.25),
         "Post Back Down": _clamp01(post_presence * 0.90 + big_share * 0.45),
@@ -276,9 +309,12 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
     for i, tendency in enumerate(tendencies):
         calc = values.get(tendency)
         if calc is None:
-            calc = _clamp01((defaults[i] / 100.0) * (0.85 + 0.30 * _scale(usg, 0.08, 0.35)))
+            calc = _clamp01(
+                (defaults[i] / 100.0)
+                * (FALLBACK_USAGE_BASE + FALLBACK_USAGE_FACTOR * _scale(usg, 0.08, 0.35))
+            )
 
-        blended = _clamp01(0.25 * (defaults[i] / 100.0) + 0.75 * calc)
+        blended = _clamp01(DEFAULT_BLEND_WEIGHT * (defaults[i] / 100.0) + CALCULATED_BLEND_WEIGHT * calc)
         cap_ratio = _clamp01(caps[i] / 100.0)
         final_ratio = min(blended, cap_ratio)
         output.append(int(round(final_ratio * 100)))
