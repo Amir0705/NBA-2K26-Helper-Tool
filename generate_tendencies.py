@@ -210,9 +210,12 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
             0.50 * stepback_freq + 0.30 * three_share + 0.20 * _scale(usg, 0.10, 0.35)
         )
 
-    onball_creation = _clamp01(0.45 * pullup_freq + 0.35 * stepback_freq + 0.20 * usg + 0.15 * ast_pct)
+    onball_creation = _clamp01(
+        (0.45 * pullup_freq + 0.35 * stepback_freq + 0.20 * usg + 0.15 * ast_pct) / 1.15
+    )
     drive_pressure = _clamp01(
-        0.55 * rim_rate + 0.35 * ft_rate + 0.30 * usg + 0.15 * dunk_share + 0.25 * attack_rate
+        (0.55 * rim_rate + 0.35 * ft_rate + 0.30 * usg + 0.15 * dunk_share + 0.25 * attack_rate)
+        / 1.60
     )
     post_presence = _clamp01(0.55 * big_share + 0.45 * hook_freq + 0.35 * fade_freq + 0.20 * rim_rate)
 
@@ -313,7 +316,7 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
         "Post Step Back": _clamp01(stepback2_freq * 1.40 + post_presence * 0.30 + mid_rate * 0.20),
         "Post Up & Under": _clamp01(post_presence * 0.50 + hook_freq * 0.60 + rim_rate * 0.20),
         "Take Charge": _clamp01(_scale(dbpm, -3.0, 4.0) * 0.60 + wing_share * 0.20 + big_share * 0.20),
-        "Foul": _clamp01(foul_pressure * 0.80 + (stl_pct + blk_pct) * 0.40),
+        "Foul": _clamp01(foul_pressure * 0.80 + stl_pct * 0.20 + blk_pct * 0.20),
         "Hard Foul": _clamp01(foul_pressure * 0.70 + big_share * 0.20 + _scale(age, 20.0, 36.0) * 0.10),
         "Pass Interception": _clamp01(_scale(stl_pct, 0.005, 0.040) * 1.20 + wing_share * 0.20),
         "On-Ball Steal": _clamp01(_scale(stl_pct, 0.005, 0.040) * 1.10 + guard_share * 0.25),
