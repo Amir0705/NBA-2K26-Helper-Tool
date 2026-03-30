@@ -198,8 +198,22 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
     turnover_pressure = _scale(per100_tov, 0.5, 7.0)
     foul_pressure = _scale(per100_pf, 1.0, 7.0)
 
+    pullup3_signal = pullup3_freq
+    if pullup3_signal == 0.0:
+        pullup3_signal = _clamp01(
+            0.45 * pullup_freq + 0.35 * three_share + 0.20 * _scale(usg, 0.10, 0.35)
+        )
+
+    stepback3_signal = stepback3_freq
+    if stepback3_signal == 0.0:
+        stepback3_signal = _clamp01(
+            0.50 * stepback_freq + 0.30 * three_share + 0.20 * _scale(usg, 0.10, 0.35)
+        )
+
     onball_creation = _clamp01(0.45 * pullup_freq + 0.35 * stepback_freq + 0.20 * usg + 0.15 * ast_pct)
-    drive_pressure = _clamp01(0.45 * rim_rate + 0.25 * ft_rate + 0.20 * usg + 0.15 * dunk_share + 0.20 * attack_rate)
+    drive_pressure = _clamp01(
+        0.55 * rim_rate + 0.35 * ft_rate + 0.30 * usg + 0.15 * dunk_share + 0.25 * attack_rate
+    )
     post_presence = _clamp01(0.55 * big_share + 0.45 * hook_freq + 0.35 * fade_freq + 0.20 * rim_rate)
 
     values: dict[str, float] = {
@@ -212,15 +226,17 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
         "Off-Screen Mid": _clamp01(mid_rate * 1.1 + guard_share * 0.2 + (1.0 - assist2) * 0.1),
         "Shot 3": _clamp01(three_share * 1.8 + three_rate * 0.30),
         "Spot-Up 3": _clamp01(three_share * (1.0 - pullup3_freq) * 2.0 + corner3_share * 0.6 + assist3 * 0.25),
-        "Off-Screen 3": _clamp01(three_share * 1.0 + pullup3_freq * 0.3 + guard_share * 0.25),
+        "Off-Screen 3": _clamp01(three_share * 1.0 + pullup3_signal * 0.3 + guard_share * 0.25),
         "Contested Mid": _clamp01(mid_rate * 0.60 + onball_creation * 0.80),
-        "Contested 3": _clamp01(three_share * 0.50 + pullup3_freq * 0.90 + stepback3_freq * 0.80),
+        "Contested 3": _clamp01(three_share * 0.50 + pullup3_signal * 0.90 + stepback3_signal * 0.80),
         "Step-Back Mid": _clamp01(stepback2_freq * 2.3 + mid_rate * 0.30),
-        "Step-Back 3": _clamp01(stepback3_freq * 2.9 + three_share * 0.20),
+        "Step-Back 3": _clamp01(stepback3_signal * 2.9 + three_share * 0.20),
         "Spin Jumper": _clamp01(fade_freq * 0.9 + hook_freq * 0.5 + mid_rate * 0.2),
-        "Transition Pull-Up 3": _clamp01(pullup3_freq * 1.2 + three_share * 0.55 + guard_share * 0.15),
+        "Transition Pull-Up 3": _clamp01(
+            pullup3_signal * 1.2 + three_share * 0.55 + guard_share * 0.15
+        ),
         "Dribble Pull-Up Mid": _clamp01(pullup2_freq * 2.3 + mid_rate * 0.25),
-        "Dribble Pull-Up 3": _clamp01(pullup3_freq * 2.6 + three_share * 0.20),
+        "Dribble Pull-Up 3": _clamp01(pullup3_signal * 2.6 + three_share * 0.20),
         "Drive": drive_pressure,
         "Spot-Up Drive": _clamp01(drive_pressure * 0.75 + (1.0 - pullup_freq) * 0.20 + guard_share * 0.10),
         "Off-Screen Drive": _clamp01(drive_pressure * 0.70 + guard_share * 0.20 + rim_rate * 0.20),
@@ -230,8 +246,8 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
         "Eurostep": _clamp01(guard_share * 0.40 + drive_pressure * 0.55 + onball_creation * 0.25),
         "Hop Step": _clamp01(drive_pressure * 0.45 + onball_creation * 0.45 + big_share * 0.10),
         "Floater": _clamp01(short_rate * 0.75 + guard_share * 0.35 + pullup2_freq * 0.25),
-        "Standing Dunk": _clamp01(dunk_share * 1.60 + big_share * 0.50 + rim_rate * 0.20),
-        "Driving Dunk": _clamp01(dunk_share * 1.50 + drive_pressure * 0.60),
+        "Standing Dunk": _clamp01(dunk_share * 1.10 + big_share * 0.20 + rim_rate * 0.15),
+        "Driving Dunk": _clamp01(dunk_share * 1.35 + drive_pressure * 0.95 + attack_rate * 0.15),
         "Flashy Dunk": _clamp01(dunk_share * 0.80 + drive_pressure * 0.35 + age_youth * 0.35),
         "Alley-Oop": _clamp01(dunk_share * 0.90 + drive_pressure * 0.25 + big_share * 0.15),
         "Putback": _clamp01(orb_pct * 2.4 + big_share * 0.25),
@@ -301,8 +317,13 @@ def _calculate_tendencies(row: dict[str, str], tendencies: list[str], defaults: 
         "Hard Foul": _clamp01(foul_pressure * 0.70 + big_share * 0.20 + _scale(age, 20.0, 36.0) * 0.10),
         "Pass Interception": _clamp01(_scale(stl_pct, 0.005, 0.040) * 1.20 + wing_share * 0.20),
         "On-Ball Steal": _clamp01(_scale(stl_pct, 0.005, 0.040) * 1.10 + guard_share * 0.25),
-        "Block": _clamp01(_scale(blk_pct, 0.005, 0.080) * 1.30 + big_share * 0.40 + height_scale * 0.20),
-        "Contest Shot": _clamp01(_scale(blk_pct, 0.005, 0.080) * 0.70 + _scale(stl_pct, 0.005, 0.040) * 0.30 + big_share * 0.30 + wing_share * 0.20),
+        "Block": _clamp01(_scale(blk_pct, 0.005, 0.080) * 1.05 + big_share * 0.18 + height_scale * 0.10),
+        "Contest Shot": _clamp01(
+            _scale(blk_pct, 0.005, 0.080) * 0.60
+            + _scale(stl_pct, 0.005, 0.040) * 0.30
+            + big_share * 0.22
+            + wing_share * 0.20
+        ),
     }
 
     output: list[int] = []
